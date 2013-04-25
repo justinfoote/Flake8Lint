@@ -2,8 +2,14 @@
 import _ast
 import sys
 
-from flake8_harobed.pyflakes import Checker
-from flake8_harobed.util import skip_warning
+try:
+    from .flake8_harobed.pyflakes import Checker
+    from .flake8_harobed.util import skip_warning
+    from .flake8_harobed.mccabe import PathGraphingAstVisitor, WARNING_CODE
+except ValueError:
+    from flake8_harobed.pyflakes import Checker
+    from flake8_harobed.util import skip_warning
+    from flake8_harobed.mccabe import PathGraphingAstVisitor, WARNING_CODE
 
 try:
     from compiler import parse   # noqa

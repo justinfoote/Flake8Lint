@@ -5,8 +5,8 @@ import time
 import sublime
 import sublime_plugin
 
-from flake8_harobed.util import skip_line
-from lint import lint, lint_external
+from .flake8_harobed.util import skip_line
+from .lint import lint, lint_external
 
 
 settings = sublime.load_settings("Flake8Lint.sublime-settings")
@@ -28,6 +28,13 @@ def getMessage(view, line):
             tips.append(
                     viewStorage.get(reg.a, {}).get('error', '(Unrecognized)'))
     return tips
+
+
+class ReplaceContentsCommand(sublime_plugin.TextCommand):
+
+    def run(self, edit, contents = ''):
+        self.view.replace(edit, sublime.Region(0, self.view.size()), contents)
+        self.view.insert(edit, self.view.size(), '\n')
 
 
 class Flake8LintCommand(sublime_plugin.TextCommand):
@@ -94,8 +101,7 @@ class Flake8LintCommand(sublime_plugin.TextCommand):
                                              interpreter, linter)
 
         # show errors
-        if self.errors_list:
-            self.show_errors()
+        self.show_errors()
 
     def show_errors(self):
         """
@@ -125,11 +131,11 @@ class Flake8LintCommand(sublime_plugin.TextCommand):
             code, _ = e[2].split(' ', 1)
 
             # check if user has a setting for select only errors to show
-            if select and filter(lambda err: not code.startswith(err), select):
+            if select and [c for c in select if code.startswith(c)]:
                 continue
 
             # check if user has a setting for ignore some errors
-            if ignore and filter(lambda err: code.startswith(err), ignore):
+            if ignore and [c for c in ignore if code.startswith(c)]:
                 continue
 
             # build line error message
@@ -177,26 +183,26 @@ class Flake8LintCommand(sublime_plugin.TextCommand):
         if settings.get('results_pane'):
             resultsPane = self._getResultsPane()
             
-            edit = resultsPane.begin_edit()
-            try:
-                resultsPane.erase(edit, sublime.Region(0, resultsPane.size()))
-                problems = sorted(errors + warnings, key = lambda r: r.begin())
-                resultsPane.insert(edit, 0, self.view.file_name() + ':')
-                resultsPane.insert(edit, resultsPane.size(), '\n')
-                resultsPane.insert(edit, resultsPane.size(), '\n')
-                for problem in problems:
-                    line = self.view.line(problem.begin())
-                    lineNumber, col = self.view.rowcol(problem.begin())
-                    messages = getMessage(self.view, line)
-                    resultsPane.insert(edit, resultsPane.size(), 
-                            self._formatMessage(lineNumber, 
-                                self.view.substr(line), messages))
+            resultsPane.run_command('replace_contents', args = {'contents': ''})
 
-                if not problems:
-                    resultsPane.insert(edit, resultsPane.size(), 
-                        '--    pass    --')
-            finally:
-                resultsPane.end_edit(edit)
+            results = []
+            problems = sorted(errors + warnings, key = lambda r: r.begin())
+            print("%s problems" % len(problems))
+            results.append(self.view.file_name() + ':')
+            results.append('\n')
+            results.append('\n')
+            for problem in problems:
+                line = self.view.line(problem.begin())
+                lineNumber, col = self.view.rowcol(problem.begin())
+                messages = getMessage(self.view, line)
+                results.append(self._formatMessage(lineNumber, 
+                        self.view.substr(line), messages))
+
+            if not problems:
+                results.append('--    pass    --')
+
+            resultsPane.run_command('replace_contents', 
+                    args = {'contents': ''.join(results)})
 
 
     def _formatMessage(self, lineNumber, line, messages):

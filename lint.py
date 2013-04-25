@@ -4,11 +4,17 @@ import os
 # We will use Stéphane Klein fork of flake8 until it not merged into flake8.
 # This version includes last version of pep8.
 # See: https://bitbucket.org/tarek/flake8/issue/23/use-pep8-configuration-file
-from flake8_harobed import pyflakes, pep8, mccabe, util
+try:
+    from .flake8_harobed import pyflakes, pep8, mccabe, util
+except ValueError:
+    from flake8_harobed import pyflakes, pep8, mccabe, util
 
 # Monkey-patching is a big evil (don't do this),
 # but hardcode is a much more bigger evil. Hate hardcore!
-from monkey_patching import pyflakes_check, mccabe_get_code_complexity
+try:
+    from .monkey_patching import pyflakes_check, mccabe_get_code_complexity
+except ValueError:
+    from monkey_patching import pyflakes_check, mccabe_get_code_complexity
 pyflakes.check = pyflakes_check
 mccabe.get_code_complexity = mccabe_get_code_complexity
 
@@ -52,7 +58,8 @@ def lint(filename, settings):
 
     # lint with pyflakes
     if settings.get('pyflakes', True):
-        warnings.extend(pyflakes.checkPath(filename))
+        print('calling %s' % pyflakes.check)
+        warnings.extend(pyflakes.check(open(filename).read()))
 
     # lint with pep8
     if settings.get('pep8', True):
@@ -109,11 +116,14 @@ def lint_external(filename, settings, interpreter, linter):
     warnings = []
 
     # run subprocess
-    proc = subprocess.Popen(arguments, stdout=subprocess.PIPE)
+    proc = subprocess.Popen(arguments, stdout=subprocess.PIPE, 
+            stderr = subprocess.STDOUT)
 
     # parse STDOUT for warnings and errors
     for line in proc.stdout:
+        line = line.decode('utf-8')
         warning = line.strip().split(':', 2)
+
         if len(warning) == 3:
             warnings.append((int(warning[0]), int(warning[1]), warning[2]))
 
@@ -141,4 +151,7 @@ if __name__ == "__main__":
 
     # run lint and print errors
     for warning in lint(filename, settings):
-        print "%d:%d:%s" % warning
+        try:
+            print("%d:%d:%s" % warning)
+        except Exception:
+            print(warning)
